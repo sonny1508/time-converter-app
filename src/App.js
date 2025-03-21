@@ -92,41 +92,79 @@ function App() {
           groupedData[name] = {};
         }
         
-        if (entry['Thời điểm đăng nhập']) {
-          const loginDate = new Date(entry['Thời điểm đăng nhập']);
-          const dateKey = `${loginDate.getDate()}/${loginDate.getMonth() + 1}`;
-          
-          if (!groupedData[name][dateKey]) {
-            groupedData[name][dateKey] = [];
+        try {
+          if (entry['Thời điểm đăng nhập']) {
+            const loginDate = new Date(entry['Thời điểm đăng nhập']);
+            
+            // Verify date is valid
+            if (isNaN(loginDate.getTime())) {
+              addLog(`Warning: Invalid login date for ${name}`);
+              return;
+            }
+            
+            const dateKey = `${loginDate.getDate()}/${loginDate.getMonth() + 1}`;
+            
+            if (!groupedData[name][dateKey]) {
+              groupedData[name][dateKey] = [];
+            }
+            
+            // Create a new session entry
+            let session = {
+              login: loginDate,
+              logout: null
+            };
+            
+            // Try to process logout if it exists
+            if (entry['Thời điểm đăng xuất']) {
+              const logoutDate = new Date(entry['Thời điểm đăng xuất']);
+              
+              // Verify logout date is valid
+              if (!isNaN(logoutDate.getTime())) {
+                const logoutDateKey = `${logoutDate.getDate()}/${logoutDate.getMonth() + 1}`;
+                
+                // Only use logout if it's from the same date
+                if (logoutDateKey === dateKey) {
+                  session.logout = logoutDate;
+                } else {
+                  addLog(`Warning: Logout date (${logoutDateKey}) doesn't match login date (${dateKey}) for ${name}`);
+                }
+              } else {
+                addLog(`Warning: Invalid logout date for ${name}`);
+              }
+            }
+            
+            groupedData[name][dateKey].push(session);
+          } else if (entry['Thời điểm đăng xuất']) {
+            // Handle case where we only have logout without login (shouldn't happen, but just in case)
+            const logoutDate = new Date(entry['Thời điểm đăng xuất']);
+            
+            // Verify date is valid
+            if (isNaN(logoutDate.getTime())) {
+              addLog(`Warning: Invalid standalone logout date for ${name}`);
+              return;
+            }
+            
+            const dateKey = `${logoutDate.getDate()}/${logoutDate.getMonth() + 1}`;
+            
+            if (!groupedData[name][dateKey]) {
+              groupedData[name][dateKey] = [];
+            }
+            
+            // Add session with only logout
+            groupedData[name][dateKey].push({
+              login: null,
+              logout: logoutDate
+            });
           }
-          
-          // Create a new session entry
-          const session = {
-            login: loginDate,
-            logout: entry['Thời điểm đăng xuất'] ? new Date(entry['Thời điểm đăng xuất']) : null
-          };
-          
-          groupedData[name][dateKey].push(session);
-        } else if (entry['Thời điểm đăng xuất']) {
-          // Handle case where we only have logout without login (shouldn't happen, but just in case)
-          const logoutDate = new Date(entry['Thời điểm đăng xuất']);
-          const dateKey = `${logoutDate.getDate()}/${logoutDate.getMonth() + 1}`;
-          
-          if (!groupedData[name][dateKey]) {
-            groupedData[name][dateKey] = [];
-          }
-          
-          // Add session with only logout
-          groupedData[name][dateKey].push({
-            login: null,
-            logout: logoutDate
-          });
+        } catch (err) {
+          addLog(`Error processing data for ${name}: ${err.message}`);
         }
       });
       
       // Process grouped data to fill template
       addLog("Filling template with processed data...");
       let filledCells = 0;
+      let emptyLogoutCells = 0;
       
       employees.forEach(employee => {
         const employeeData = groupedData[employee.name];
@@ -147,18 +185,16 @@ function App() {
                 filledCells++;
               }
               
-              // Set logout time only if it exists and matches the same date
+              // Set logout time if available, otherwise set empty string
+              const logoutCell = XLSX.utils.encode_cell({r: employee.row, c: dateCol.logoutCol});
               if (session.logout) {
-                const logoutDate = session.logout;
-                const sessionDateKey = `${logoutDate.getDate()}/${logoutDate.getMonth() + 1}`;
-                
-                // Only add logout if it's from the same date as the login
-                if (sessionDateKey === dateKey) {
-                  const logoutTime = `${logoutDate.getHours().toString().padStart(2, '0')}:${logoutDate.getMinutes().toString().padStart(2, '0')}`;
-                  const logoutCell = XLSX.utils.encode_cell({r: employee.row, c: dateCol.logoutCol});
-                  templateSheet[logoutCell] = {t: 's', v: logoutTime};
-                  filledCells++;
-                }
+                const logoutTime = `${session.logout.getHours().toString().padStart(2, '0')}:${session.logout.getMinutes().toString().padStart(2, '0')}`;
+                templateSheet[logoutCell] = {t: 's', v: logoutTime};
+                filledCells++;
+              } else {
+                // Explicitly set empty string for missing logout time
+                templateSheet[logoutCell] = {t: 's', v: ''};
+                emptyLogoutCells++;
               }
             }
           });
@@ -166,6 +202,7 @@ function App() {
       });
       
       addLog(`Filled ${filledCells} cells with time data`);
+      addLog(`Set ${emptyLogoutCells} empty cells for missing logout times`);
       
       // Generate the output workbook
       const outputWorkbook = templateWorkbook;
