@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/time-converter-app/static/css/main.18f0aa47.css",
-    "main.js": "/time-converter-app/static/js/main.2d24963b.js",
+    "main.js": "/time-converter-app/static/js/main.8d0a5e50.js",
     "index.html": "/time-converter-app/index.html",
     "main.18f0aa47.css.map": "/time-converter-app/static/css/main.18f0aa47.css.map",
-    "main.2d24963b.js.map": "/time-converter-app/static/js/main.2d24963b.js.map"
+    "main.8d0a5e50.js.map": "/time-converter-app/static/js/main.8d0a5e50.js.map"
   },
   "entrypoints": [
     "static/css/main.18f0aa47.css",
-    "static/js/main.2d24963b.js"
+    "static/js/main.8d0a5e50.js"
   ]
 }
